@@ -24,10 +24,26 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install numpy matplotlib
+      - name: Normalize Q2 area labels for Q6 runtime
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('project_materials/analysis/q2/Q2_silhouette_scores.csv')
+          lines = p.read_text(encoding='utf-8').splitlines()
+          out = [lines[0]]
+          for line in lines[1:]:
+              if line.startswith('1,'):
+                  line = 'Area1,' + line[2:]
+              elif line.startswith('2,'):
+                  line = 'Area2,' + line[2:]
+              out.append(line)
+          p.write_text('\n'.join(out) + '\n', encoding='utf-8')
+          PY
       - name: Run Question 6 analysis
         run: python project_materials/analysis/q6/q6_regularity_evaluation.py
       - name: Commit generated outputs
         run: |
+          git checkout -- project_materials/analysis/q2/Q2_silhouette_scores.csv
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add project_materials/analysis/q6
