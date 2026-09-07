@@ -1,0 +1,41 @@
+name: Q4 No-Weather Forecast
+
+on:
+  push:
+    paths:
+      - 'project_materials/analysis/q4/q4_no_weather_forecast.py'
+      - 'project_materials/Area1_Load.csv'
+      - 'project_materials/Area2_Load.csv'
+      - '.github/workflows/q4_analysis.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install numpy matplotlib scikit-learn
+      - name: Run Question 4 analysis
+        run: python project_materials/analysis/q4/q4_no_weather_forecast.py
+      - name: Commit generated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add project_materials/analysis/q4
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Generate Question 4 forecast outputs"
+            git push
+          fi
