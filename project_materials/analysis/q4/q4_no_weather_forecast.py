@@ -8,7 +8,6 @@ without using unknown Jan 4-10 actual loads or recursive predictions.
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -22,7 +21,16 @@ FIG = OUT / "figures"
 SLOTS = 96
 LAGS = np.array([7, 14, 21, 28, 35, 42, 49, 56], dtype=int)
 TARGET_START = datetime(2015, 1, 4)
-TARGET_DAYS = 7
+
+
+def parse_date(x: str) -> datetime:
+    x = x.strip()
+    for fmt in ("%Y%m%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(x, fmt)
+        except ValueError:
+            pass
+    raise ValueError(f"Unsupported date format: {x!r}")
 
 
 def read_load(path: Path):
@@ -35,25 +43,20 @@ def read_load(path: Path):
         for row in r:
             if not row:
                 continue
-            dates.append(datetime.strptime(row[0], "%Y-%m-%d"))
+            dates.append(parse_date(row[0]))
             vals.append([float(x) for x in row[1:]])
     return dates, np.asarray(vals, dtype=float), header
 
 
-def feature_row(d: datetime, slot: int, hist: np.ndarray) -> np.ndarray:
-    lagvals = hist[-LAGS, slot]
+def feature_from_lags(d: datetime, slot: int, lagvals: np.ndarray) -> np.ndarray:
     doy = d.timetuple().tm_yday
     return np.array([
-        d.month,
-        d.weekday(),
-        1.0 if d.weekday() >= 5 else 0.0,
+        d.month, d.weekday(), 1.0 if d.weekday() >= 5 else 0.0,
         np.sin(2*np.pi*doy/365.25), np.cos(2*np.pi*doy/365.25),
         np.sin(2*np.pi*slot/SLOTS), np.cos(2*np.pi*slot/SLOTS),
         *lagvals.tolist(),
-        float(lagvals[:4].mean()),
-        float(np.median(lagvals[:4])),
-        float(lagvals[:4].std()),
-        float(lagvals.mean()),
+        float(lagvals[:4].mean()), float(np.median(lagvals[:4])),
+        float(lagvals[:4].std()), float(lagvals.mean()),
     ], dtype=float)
 
 
@@ -61,10 +64,10 @@ def make_training(dates, values, cutoff_idx: int, lookback_days: int = 4*365):
     start = max(int(LAGS.max()), cutoff_idx - lookback_days)
     X, y = [], []
     for i in range(start, cutoff_idx):
-        hist = values[:i]
         d = dates[i]
         for s in range(SLOTS):
-            X.append(feature_row(d, s, hist))
+            lagvals = np.array([values[i-k, s] for k in LAGS])
+            X.append(feature_from_lags(d, s, lagvals))
             y.append(values[i, s])
     return np.asarray(X), np.asarray(y)
 
@@ -92,21 +95,19 @@ def baseline_predict(values: np.ndarray, idx: int, method: str) -> np.ndarray:
     raise ValueError(method)
 
 
+def forecast_date(dates, idx: int, h: int) -> datetime:
+    if idx < len(dates):
+        return dates[idx] + timedelta(days=h)
+    return TARGET_START + timedelta(days=h)
+
+
 def ml_predict(model, dates, values, idx: int) -> np.ndarray:
     rows = []
     for h in range(7):
-        d = dates[idx] + timedelta(days=h) if idx < len(dates) else TARGET_START + timedelta(days=h)
-        # Historical lags are all >=7d, so for horizon h use only actual history ending before idx.
+        d = forecast_date(dates, idx, h)
         for s in range(SLOTS):
             lagvals = np.array([values[idx+h-k, s] for k in LAGS])
-            doy = d.timetuple().tm_yday
-            rows.append(np.array([
-                d.month, d.weekday(), 1.0 if d.weekday() >= 5 else 0.0,
-                np.sin(2*np.pi*doy/365.25), np.cos(2*np.pi*doy/365.25),
-                np.sin(2*np.pi*s/SLOTS), np.cos(2*np.pi*s/SLOTS),
-                *lagvals.tolist(), float(lagvals[:4].mean()), float(np.median(lagvals[:4])),
-                float(lagvals[:4].std()), float(lagvals.mean())
-            ]))
+            rows.append(feature_from_lags(d, s, lagvals))
     return model.predict(np.asarray(rows)).reshape(7, SLOTS)
 
 
@@ -125,12 +126,12 @@ def daily_mape(actual, pred):
 
 
 def choose_backtest_indices(dates):
-    # 13 rolling 7-day origins across 2014, starting on Sundays, approximately every 4 weeks.
+    index = {d:i for i,d in enumerate(dates)}
     out=[]
     target=datetime(2014,1,5)
     while target <= datetime(2014,12,7):
-        if target in dates and dates.index(target)+7 <= len(dates):
-            out.append(dates.index(target))
+        if target in index and index[target]+7 <= len(dates):
+            out.append(index[target])
         target += timedelta(days=28)
     return out
 
@@ -157,30 +158,22 @@ def run_area(area: str, values: np.ndarray, dates, header):
     for m in methods:
         rs=[r for r in records if r[3]==m]
         summary.append([area,m,*[float(np.mean([r[j] for r in rs])) for j in range(4,8)],float(np.std([r[6] for r in rs],ddof=1))])
-    best=min(summary,key=lambda x:x[4]) # average MAPE column
+    best=min(summary,key=lambda x:x[4])
 
-    # Final forecast: model selection is based only on historical 2014 backtests.
-    idx=len(dates)  # after Jan 3, 2015
-    if best[1]=="hgb_fixed_lags":
-        model=fit_ml(dates,values,idx)
-        final=ml_predict(model,dates,values,idx)
-    else:
-        final=baseline_predict(values,idx,best[1])
-
-    # Also retain all candidate final forecasts for audit/comparison.
+    idx=len(dates)
     candidate_final={m:baseline_predict(values,idx,m) for m in methods[:3]}
-    model=fit_ml(dates,values,idx)
-    candidate_final["hgb_fixed_lags"]=ml_predict(model,dates,values,idx)
+    final_model=fit_ml(dates,values,idx)
+    candidate_final["hgb_fixed_lags"]=ml_predict(final_model,dates,values,idx)
+    final=candidate_final[best[1]]
 
-    # prediction CSV in required 7x96 layout
     out_path=OUT/f"Q4_{area}_Load.csv"
     with out_path.open("w",encoding="utf-8",newline="") as f:
         w=csv.writer(f)
         w.writerow(header)
         for h in range(7):
-            w.writerow([(TARGET_START+timedelta(days=h)).strftime("%Y-%m-%d"), *[f"{v:.4f}" for v in final[h]]])
+            # Preserve source submission date style (YYYYMMDD).
+            w.writerow([(TARGET_START+timedelta(days=h)).strftime("%Y%m%d"), *[f"{v:.4f}" for v in final[h]]])
 
-    # candidate forecasts long audit table
     with (OUT/f"Q4_{area}_candidate_forecasts.csv").open("w",encoding="utf-8",newline="") as f:
         w=csv.writer(f); w.writerow(["date","slot","method","forecast_MW"])
         for m,p in candidate_final.items():
@@ -188,12 +181,9 @@ def run_area(area: str, values: np.ndarray, dates, header):
                 for s in range(SLOTS):
                     w.writerow([(TARGET_START+timedelta(days=h)).strftime("%Y-%m-%d"),s,m,f"{p[h,s]:.4f}"])
 
-    # figures
     x=np.arange(7*SLOTS)/4
-    plt.figure(figsize=(11,5))
-    plt.plot(x,final.ravel(),lw=1.1)
-    plt.xlabel("Hours from 2015-01-04 00:00")
-    plt.ylabel("Forecast load (MW)")
+    plt.figure(figsize=(11,5)); plt.plot(x,final.ravel(),lw=1.1)
+    plt.xlabel("Hours from 2015-01-04 00:00"); plt.ylabel("Forecast load (MW)")
     plt.tight_layout(); plt.savefig(FIG/f"{area.lower()}_q4_forecast.svg",format="svg"); plt.close()
 
     labels=[s[1] for s in summary]; mapes=[s[4] for s in summary]
@@ -207,8 +197,7 @@ def run_area(area: str, values: np.ndarray, dates, header):
 
 def main():
     OUT.mkdir(parents=True,exist_ok=True); FIG.mkdir(parents=True,exist_ok=True)
-    results={}
-    all_records=[]; all_summary=[]
+    results={}; all_records=[]; all_summary=[]
     for area in ["Area1","Area2"]:
         dates,values,header=read_load(ROOT/f"{area}_Load.csv")
         if dates[-1] != datetime(2015,1,3): raise ValueError(f"{area}: last date is {dates[-1]}")
@@ -223,11 +212,9 @@ def main():
 
     def row(area):
         best,final,dm=results[area]
-        return {
-            "model":best[1],"mae":best[2],"rmse":best[3],"mape":best[4],"bias":best[5],"sd":best[6],
-            "p10":float(np.percentile(dm,10)),"p50":float(np.percentile(dm,50)),"p90":float(np.percentile(dm,90)),
-            "fmean":float(final.mean()),"fmax":float(final.max()),"fmin":float(final.min())
-        }
+        return {"model":best[1],"mae":best[2],"rmse":best[3],"mape":best[4],"bias":best[5],"sd":best[6],
+                "p10":float(np.percentile(dm,10)),"p50":float(np.percentile(dm,50)),"p90":float(np.percentile(dm,90)),
+                "fmean":float(final.mean()),"fmax":float(final.max()),"fmin":float(final.min())}
     a1=row("Area1"); a2=row("Area2")
 
     def model_table(area):
