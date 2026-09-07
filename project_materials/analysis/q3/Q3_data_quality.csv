@@ -1,0 +1,13 @@
+﻿area,date,factor,raw_value,treatment
+Area1,2012-03-21,最高温度,54.9,Excluded: obvious high-temperature transcription outlier
+Area1,2012-03-27,最高温度,54.9,Excluded: obvious high-temperature transcription outlier
+Area1,2014-07-25,平均温度,,Source missing value; omitted from relevant regression
+Area1,2014-07-25,相对湿度,,Source missing value; omitted from relevant regression
+Area1,2012-12-03,降雨量,,Source missing value; omitted from relevant regression
+Area1,2014-07-25,降雨量,,Source missing value; omitted from relevant regression
+Area2,2012-10-08,最低温度,-38.6,Excluded: obvious low-temperature transcription outlier
+Area2,2012-10-09,最低温度,-22.4,Excluded: obvious low-temperature transcription outlier
+Area2,2012-10-10,最低温度,-22.3,Excluded: obvious low-temperature transcription outlier
+Area2,2012-10-11,最低温度,-24.6,Excluded: obvious low-temperature transcription outlier
+Area2,2014-08-05,相对湿度,,Source missing value; omitted from relevant regression
+Area2,2012-12-03,降雨量,,Source missing value; omitted from relevant regression
