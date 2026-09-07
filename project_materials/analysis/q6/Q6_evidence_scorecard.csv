@@ -1,0 +1,13 @@
+evidence,preferred_direction,Area1,Area2,winner
+1-day same-time correlation,higher,0.8979076616083232,0.9556510497697841,Area2
+1-day persistence MAPE,lower,9.103330358904376,5.914488285871922,Area2
+7-day same-time correlation,higher,0.8666919911385479,0.9120423883058881,Area2
+7-day persistence MAPE,lower,12.03562413989745,9.654933899057646,Area2
+normalized daily-shape dispersion,lower,0.06362713552782694,0.0545731049494465,Area2
+day-to-day normalized-profile change,lower,0.056289759737903164,0.03860541433443561,Area2
+2009-2013 weekday-template -> 2014 MAPE,lower,23.51960917098839,21.908706718658177,Area2
+Q2 best silhouette,higher,0.5411990001020759,0.6219692965686822,Area2
+Q4 best rolling MAPE,lower,6.829842041598725,7.268372952414236,Area1
+Q4 fold MAPE SD,lower,5.264963363946238,3.5255213615131487,Area2
+Q5 best weather rolling MAPE,lower,5.714620708759397,5.975346079653773,Area1
+Q5 weather relative improvement,higher,18.345648655676545,21.54713773355396,Area2
