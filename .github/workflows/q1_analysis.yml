@@ -1,0 +1,47 @@
+name: Q1 Load Analysis
+
+on:
+  push:
+    paths:
+      - "project_materials/analysis/q1/q1_load_analysis.py"
+      - "project_materials/Area1_Load.csv"
+      - "project_materials/Area2_Load.csv"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-q1-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip numpy matplotlib
+
+      - name: Run Question 1 analysis
+        run: python project_materials/analysis/q1/q1_load_analysis.py
+
+      - name: Commit generated Q1 outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add project_materials/analysis/q1/Q1_ANALYSIS.md
+          git add project_materials/analysis/q1/Q1_daily_metrics_2014.csv
+          git add project_materials/analysis/q1/Q1_summary_statistics.csv
+          git add project_materials/analysis/q1/Q1_load_duration_points.csv
+          git add project_materials/analysis/q1/figures/*.svg
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "Generate Question 1 analysis outputs"
+            git push
+          fi
