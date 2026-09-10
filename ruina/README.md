@@ -3,6 +3,9 @@
 This folder is the persistent working area for Ruina save/event investigation.
 
 ## Working rules
+- **Strict spoiler rule:** do not reveal, imply, foreshadow, or hint at any event, reward, character development, route outcome, boss mechanic, location, or future consequence the user has not explicitly asked to know.
+- When the user asks a narrowly scoped mechanical question, answer only that scope. Do not volunteer adjacent facts merely because they are relevant internally.
+- If a conclusion can be given without naming the hidden event/threshold/reward, prefer the spoiler-safe conclusion.
 - Keep spoiler exposure minimal and limited to the exact event/mechanic being investigated.
 - Do not modify the user's original save unless explicitly requested.
 - Record evidence separately from hypotheses.
